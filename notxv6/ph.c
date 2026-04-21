@@ -6,10 +6,10 @@
 #include <sys/time.h>
 #include <pthread.h>
 
-pthread_mutex_t lock;
-
 #define NBUCKET 5
 #define NKEYS 100000
+
+pthread_mutex_t locks[NBUCKET];
 
 struct entry {
   int key;
@@ -45,8 +45,8 @@ void put(int key, int value)
   int i = key % NBUCKET;
 
   // is the key already present?
-  pthread_mutex_lock(&lock);
-  
+  pthread_mutex_lock(&locks[i]);
+
   struct entry *e = 0;
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key)
@@ -60,7 +60,7 @@ void put(int key, int value)
     insert(key, value, &table[i], table[i]);
   }
 
-  pthread_mutex_unlock(&lock);
+  pthread_mutex_unlock(&locks[i]);
 
 }
 
@@ -69,14 +69,14 @@ get(int key)
 {
   int i = key % NBUCKET;
 
-  pthread_mutex_lock(&lock);
+  pthread_mutex_lock(&locks[i]);
 
   struct entry *e = 0;
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key) break;
   }
 
-  pthread_mutex_unlock(&lock);
+  pthread_mutex_unlock(&locks[i]);
 
   return e;
 }
@@ -111,11 +111,13 @@ get_thread(void *xa)
 int
 main(int argc, char *argv[])
 {
-  pthread_mutex_init(&lock, NULL);
   pthread_t *tha;
   void *value;
   double t1, t0;
 
+  for (int i = 0; i < NBUCKET; i++) {
+    pthread_mutex_init(&locks[i], NULL);
+  }
 
   if (argc < 2) {
     fprintf(stderr, "Usage: %s nthreads\n", argv[0]);
